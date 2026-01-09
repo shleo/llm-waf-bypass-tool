@@ -23,11 +23,17 @@ class EnhancedWAF:
         # 布尔注入
         r"\b(or|and)\s+\d+\s*=\s*\d+",
         r"\b(or|and)\s+['\"]?\w+['\"]?\s*=\s*['\"]?\w+['\"]?",
-        # UNION 注入（更严格）
+        # UNION 注入（更严格）- 添加内联注释变体
         r"\bunion\s+(all\s+)?select\b",
         r"\bunion\s*/\*\s*(\d+)?\s*/\*\s*select\b",
+        r"union\s*/\*",  # 检测 union 后跟任意注释
+        r"/\*\s*union",  # 检测注释后跟 union
+        r"/\*.*?\*/.*?select",  # 检测注释包围的 select
         # SELECT 语句
         r"\bselect\s+.+?\bfrom\b",
+        # SELECT 与注释组合
+        r"select\s*/\*",
+        r"/\*\s*select",
         # 其他 SQL 关键字组合
         r"\b(insert\s+into|update\s+\w+\s+set|delete\s+from)\b",
         r"\b(drop|alter|create)\s+(table|database|index)\b",
@@ -41,6 +47,10 @@ class EnhancedWAF:
         r"=\s*['\"]?\d+['\"]?\s*(or|and)\b",
         # 检测常见绕过模式
         r"\bun\s*/\*\s*\w+\s*/\*\s*select\b",
+        # 检测 UNION/SELECT 关键字与注释混合
+        r"union\s*/\*\*+\s*/select",
+        r"union\s*/\*\*+\s*\w",
+        r"/\*\*+\s*union",
     ]
 
     # ========== 第二层：函数和编码检测 ==========
@@ -155,7 +165,202 @@ class EnhancedWAF:
         # 特殊字符
         r"[<>\"'`]",
         r"[\x00-\x1F]",  # 控制字符
+        # Tab 和换行绕过
+        r"[\t\n\r]",
     ]
+
+    # ========== 第十一层：高级绕过技术 ==========
+    ADVANCED_EVASION_PATTERNS = [
+        # 双重/多重编码绕过
+        r"%25[0-9a-f]{2}",  # 双重 URL 编码
+        r"%%25[0-9a-f]{2}",
+        # Unicode 混淆
+        r"%u00[0-9a-f]{2}",
+        r"\\\\u002[0-9a-f]",  # 修复转义
+        # 科学计数法绕过
+        r"\d+[eE][+-]?\d+",
+        # 反引号执行
+        r"`[^`]*`",
+        # PIPE 命令
+        r"\|.*?\b(cat|ls|rm|cp|mv|wget|curl)\b",
+        # 命令连接符
+        r"[;&|]\s*\w+",
+        # $() 命令替换
+        r"\$\([^)]*\)",
+        r"`[^`]*`",
+    ]
+
+    # ========== 第十二层：HTTP 参数污染 ==========
+    PARAMETER_POLLUTION_PATTERNS = [
+        # 重复参数检测（在 Flask 层面处理）
+        r"&\w*=",
+        # 参数分割
+        r";\s*\w+\s*=",
+        # 分号分隔
+        r"\w+\s*=\s*[^&]*;",
+    ]
+
+    # ========== 第十三层：逻辑绕过检测 ==========
+    LOGIC_BYPASS_PATTERNS = [
+        # NOT 操作符绕过
+        r"\bnot\s+between\b",
+        r"\b!\s*=\s*",
+        r"\b<>",
+        r"<\s*=\s*\d+[^0-9]",
+        r">\s*=\s*\d+[^0-9]",
+        # IN 操作符
+        r"\b(in|is)\s*\(",
+        # LIKE 注入
+        r"\blike\s+['\"]?%",
+        r"\blike\s+['\"]?_",
+        # BETWEEN
+        r"\bbetween\s+\d+\s+and\s+\d+",
+        # REGEXP
+        r"\bregexp\s+",
+        r"\brlike\s+",
+    ]
+
+    # ========== 第十四层：NoSQL 注入检测 ==========
+    NOSQL_PATTERNS = [
+        # MongoDB 操作符 (使用原始字符串检测)
+        r"\$where",
+        r"\$ne",
+        r"\$gt",
+        r"\$lt",
+        r"\$in",
+        r"\$nin",
+        r"\$exists",
+        r"\$regex",
+        r"\$or",
+        r"\$and",
+        # JavaScript 代码
+        r"\bfunction\s*\(",
+        r"\breturn\s+",
+        r"\bthis\.",
+    ]
+
+    # ========== 第十五层：模板注入检测 ==========
+    TEMPLATE_INJECTION_PATTERNS = [
+        # Jinja2
+        r"\{\{",
+        r"\{%.*?%\}",
+        r"\{#",
+        # SSTI (Server-Side Template Injection)
+        r"config\b",
+        r"request\b",
+        r"self\b",
+        r"__class__",
+        # 其他模板引擎
+        r"\$\{",
+        r"@\(.*?\)",
+        r"#{",
+    ]
+
+    # ========== 第十六层：XSS 检测 ==========
+    XSS_PATTERNS = [
+        # Script 标签
+        r"<script[^>]*>.*?</script>",
+        r"<script[^>]*>",
+        # 事件处理器
+        r"on\w+\s*=",
+        r"on(load|click|mouseover|error|focus|blur)\s*=",
+        # Javascript 协议
+        r"javascript:",
+        r"vbscript:",
+        r"data:",
+        # iframe
+        r"<iframe[^>]*>",
+        # SVG
+        r"<svg[^>]*>.*?</svg>",
+        # IMG 标签 XSS
+        r"<img[^>]+onerror",
+        # Style 注入
+        r"<style[^>]*>.*?</style>",
+        r"expression\s*\(",
+    ]
+
+    # ========== 第十七层：文件包含检测 ==========
+    FILE_INCLUSION_PATTERNS = [
+        # LFI (Local File Inclusion)
+        r"\.\.\/",
+        r"\.\.\\",
+        r"/etc/passwd",
+        r"/etc/shadow",
+        r"c:\\windows\\system32",
+        r"file:///",
+        # PHP 文件包含
+        r"(php://|expect://|zip://|data://)",
+        r"include\s*\(",
+        r"require\s*\(",
+        r"file_get_contents\s*\(",
+        # RF
+        r"https?://",
+        r"ftp://",
+    ]
+
+    # ========== 第十八层：SSRF 检测 ==========
+    SSRF_PATTERNS = [
+        # 内网地址
+        r"(?i)(localhost|127\.0\.0\.1|0\.0\.0\.0|::1)",
+        r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}",
+        r"172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}",
+        r"192\.168\.\d{1,3}\.\d{1,3}",
+        r"169\.254\.\d{1,3}\.\d{1,3}",
+        # 元数据端点
+        r"metadata",
+        r"169\.254\.169\.254",
+        # 常见内网端口
+        r":(22|23|80|443|3306|3389|6379|27017|5672|9200)",
+    ]
+
+    # ========== 第十九层：特殊字符序列检测 ==========
+    SPECIAL_SEQUENCE_PATTERNS = [
+        # 引号混淆
+        r"['\"]+.*?['\"]+.*?(or|and)",
+        # 多个等号
+        r"={2,}",
+        # 数字开头后跟关键字
+        r"\d+\s*(or|and|union|select|xor)",
+        # 特殊字符组合
+        r"[&|]{2,}",
+        r"/\*!\s*\d{5}\s*\*/",
+        # 反斜杠绕过
+        r"\\['\"]",
+        # 注释后跟关键字
+        r"(--|#|/\*).*?(union|select|drop|delete)",
+    ]
+
+    # ========== 第二十层：语义分析检测 ==========
+    def semantic_analysis(self, text):
+        """语义分析 - 检测 SQL 语句结构"""
+        # 检测是否像 SQL 语句
+        sql_keywords = ['select', 'insert', 'update', 'delete', 'drop', 'create', 'alter']
+        sql_clauses = ['from', 'where', 'having', 'group by', 'order by', 'limit', 'offset']
+
+        text_lower = text.lower()
+
+        # 检查是否有多个 SQL 关键字
+        keyword_count = sum(1 for kw in sql_keywords if kw in text_lower)
+
+        # 检查是否有 SQL 子句
+        clause_count = sum(1 for cl in sql_clauses if cl in text_lower)
+
+        # 如果同时有关键字和子句，很可能是 SQL 注入
+        if keyword_count >= 1 and clause_count >= 1:
+            return True, f"SQL Structure Detected (keywords: {keyword_count}, clauses: {clause_count})"
+
+        # 检查是否存在不合理的参数值
+        if re.search(r"\d+\s*(or|and)\s*\d+\s*=\s*\d+", text_lower):
+            return True, "Boolean Logic Pattern Detected"
+
+        # 检查引号不平衡
+        single_quotes = text.count("'")
+        double_quotes = text.count('"')
+        if single_quotes % 2 != 0 or double_quotes % 2 != 0:
+            if any(kw in text_lower for kw in sql_keywords):
+                return True, "Unbalanced Quotes with SQL Keywords"
+
+        return False, None
 
     def __init__(self, enabled=True, detection_level='medium'):
         """
@@ -185,16 +390,30 @@ class EnhancedWAF:
             'stacked_query': self.STACKED_QUERY_PATTERNS,
             'second_order': self.SECOND_ORDER_PATTERNS,
             'evasion': self.EVASION_PATTERNS,
+            'advanced_evasion': self.ADVANCED_EVASION_PATTERNS,
+            'param_pollution': self.PARAMETER_POLLUTION_PATTERNS,
+            'logic_bypass': self.LOGIC_BYPASS_PATTERNS,
+            'nosql': self.NOSQL_PATTERNS,
+            'template_injection': self.TEMPLATE_INJECTION_PATTERNS,
+            'xss': self.XSS_PATTERNS,
+            'file_inclusion': self.FILE_INCLUSION_PATTERNS,
+            'ssrf': self.SSRF_PATTERNS,
+            'special_sequence': self.SPECIAL_SEQUENCE_PATTERNS,
+            'semantic': self.semantic_analysis,
         }
 
         # 根据级别选择启用的规则
         if self.detection_level == 'low':
-            self.active_categories = ['basic']
+            self.active_categories = ['basic', 'xss', 'file_inclusion']
         elif self.detection_level == 'medium':
-            self.active_categories = ['basic', 'functions', 'time_based', 'metadata']
+            self.active_categories = ['basic', 'functions', 'time_based', 'metadata',
+                                     'xss', 'file_inclusion', 'logic_bypass']
         elif self.detection_level == 'high':
             self.active_categories = ['basic', 'functions', 'time_based', 'metadata',
-                                      'encoding', 'inline_comment', 'stacked_query']
+                                     'encoding', 'inline_comment', 'stacked_query',
+                                     'advanced_evasion', 'param_pollution', 'logic_bypass',
+                                     'nosql', 'xss', 'file_inclusion', 'ssrf',
+                                     'special_sequence']
         elif self.detection_level == 'paranoid':
             self.active_categories = list(self.all_patterns.keys())
         else:
@@ -292,8 +511,8 @@ class EnhancedWAF:
                 matches = re.findall(pattern, normalized, re.IGNORECASE)
                 encoding_count += len(matches)
 
-            # 如果有多个编码模式，可能是编码绕过
-            if encoding_count >= 3:
+            # 如果有编码模式，可能是编码绕过 (降低阈值从3到1)
+            if encoding_count >= 1:
                 detection_results.append({
                     'category': 'encoding',
                     'pattern': 'multiple_encodings',
@@ -349,14 +568,118 @@ class EnhancedWAF:
                         'reason': 'Evasion Technique Detected'
                     })
 
+        # 第十一层：高级绕过技术
+        if 'advanced_evasion' in self.active_categories:
+            for pattern in self.ADVANCED_EVASION_PATTERNS:
+                if re.search(pattern, normalized, re.IGNORECASE):
+                    detection_results.append({
+                        'category': 'advanced_evasion',
+                        'pattern': pattern,
+                        'reason': 'Advanced Evasion Technique Detected'
+                    })
+
+        # 第十二层：参数污染
+        if 'param_pollution' in self.active_categories:
+            for pattern in self.PARAMETER_POLLUTION_PATTERNS:
+                if re.search(pattern, check_string, re.IGNORECASE):
+                    detection_results.append({
+                        'category': 'param_pollution',
+                        'pattern': pattern,
+                        'reason': 'Parameter Pollution Detected'
+                    })
+
+        # 第十三层：逻辑绕过
+        if 'logic_bypass' in self.active_categories:
+            for pattern in self.LOGIC_BYPASS_PATTERNS:
+                if re.search(pattern, normalized, re.IGNORECASE):
+                    detection_results.append({
+                        'category': 'logic_bypass',
+                        'pattern': pattern,
+                        'reason': 'Logic Bypass Attempt Detected'
+                    })
+
+        # 第十四层：NoSQL 注入
+        if 'nosql' in self.active_categories:
+            for pattern in self.NOSQL_PATTERNS:
+                if re.search(pattern, normalized, re.IGNORECASE):
+                    detection_results.append({
+                        'category': 'nosql',
+                        'pattern': pattern,
+                        'reason': 'NoSQL Injection Detected'
+                    })
+
+        # 第十五层：模板注入
+        if 'template_injection' in self.active_categories:
+            for pattern in self.TEMPLATE_INJECTION_PATTERNS:
+                if re.search(pattern, check_string, re.IGNORECASE):
+                    detection_results.append({
+                        'category': 'template_injection',
+                        'pattern': pattern,
+                        'reason': 'Template Injection Detected'
+                    })
+
+        # 第十六层：XSS 检测
+        if 'xss' in self.active_categories:
+            for pattern in self.XSS_PATTERNS:
+                if re.search(pattern, check_string, re.IGNORECASE):
+                    detection_results.append({
+                        'category': 'xss',
+                        'pattern': pattern,
+                        'reason': 'XSS Attack Detected'
+                    })
+
+        # 第十七层：文件包含
+        if 'file_inclusion' in self.active_categories:
+            for pattern in self.FILE_INCLUSION_PATTERNS:
+                if re.search(pattern, check_string, re.IGNORECASE):
+                    detection_results.append({
+                        'category': 'file_inclusion',
+                        'pattern': pattern,
+                        'reason': 'File Inclusion Attack Detected'
+                    })
+
+        # 第十八层：SSRF 检测
+        if 'ssrf' in self.active_categories:
+            for pattern in self.SSRF_PATTERNS:
+                if re.search(pattern, check_string, re.IGNORECASE):
+                    detection_results.append({
+                        'category': 'ssrf',
+                        'pattern': pattern,
+                        'reason': 'SSRF Attack Detected'
+                    })
+
+        # 第十九层：特殊字符序列
+        if 'special_sequence' in self.active_categories:
+            for pattern in self.SPECIAL_SEQUENCE_PATTERNS:
+                if re.search(pattern, normalized, re.IGNORECASE):
+                    detection_results.append({
+                        'category': 'special_sequence',
+                        'pattern': pattern,
+                        'reason': 'Special Character Sequence Detected'
+                    })
+
+        # 第二十层：语义分析
+        if 'semantic' in self.active_categories:
+            is_malicious, semantic_reason = self.semantic_analysis(check_string)
+            if is_malicious:
+                detection_results.append({
+                    'category': 'semantic',
+                    'pattern': 'semantic_analysis',
+                    'reason': semantic_reason
+                })
+
         # 评估检测风险
         if detection_results:
             # 计算风险分数
             risk_score = len(detection_results)
             for result in detection_results:
-                if result['category'] in ['time_based', 'metadata', 'stacked_query']:
+                # 高风险类别
+                if result['category'] in ['time_based', 'metadata', 'stacked_query', 'advanced_evasion',
+                                         'template_injection', 'semantic']:
                     risk_score += 2
-                elif result['category'] in ['encoding', 'evasion']:
+                # 中风险类别
+                elif result['category'] in ['encoding', 'evasion', 'param_pollution', 'nosql',
+                                           'xss', 'ssrf', 'special_sequence']:
                     risk_score += 1
 
             # 根据检测级别调整阈值
@@ -371,8 +694,10 @@ class EnhancedWAF:
                 # 记录最严重的检测
                 worst_result = detection_results[0]
                 if len(detection_results) > 1:
-                    # 找到最严重的类别
-                    priority = ['time_based', 'stacked_query', 'metadata', 'functions', 'basic']
+                    # 找到最严重的类别（按优先级排序）
+                    priority = ['semantic', 'time_based', 'stacked_query', 'advanced_evasion',
+                              'template_injection', 'metadata', 'nosql', 'ssrf', 'xss',
+                              'param_pollution', 'functions', 'encoding', 'evasion', 'basic']
                     for p in priority:
                         for r in detection_results:
                             if r['category'] == p:
