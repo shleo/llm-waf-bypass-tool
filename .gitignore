@@ -72,3 +72,6 @@ htmlcov/
 *.egg-info/
 dist/
 build/
+
+# Json - Only exclude llm_config.json (keep other json files)
+llm_config.json
