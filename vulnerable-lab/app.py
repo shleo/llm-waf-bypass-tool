@@ -631,6 +631,98 @@ def api_enhanced_login():
         }), 500
 
 
+# ==================== 命令注入端点 ====================
+
+@app.route('/api/cmd/user', methods=['GET'])
+@enhanced_waf_protect(param_name='id')
+def api_cmd_user():
+    """
+    命令注入端点 - 用于测试 SQL 注入导致的命令执行
+
+    这个端点演示了如何通过 SQL 注入实现命令执行并回显结果。
+    在 MySQL 中，可以使用 INTO OUTFILE 或者某些存储过程来执行系统命令。
+
+    漏洞原理:
+    1. 通过 SQL 注入获取数据库信息
+    2. 利用某些 MySQL 函数可以读取系统信息
+    3. 在真实场景中，可能存在 INTO OUTFILE 写 webshell 等更严重漏洞
+
+    成功标准:
+    1. 绕过 WAF 检测
+    2. 成功执行 SQL 注入
+    3. 获取到系统信息或数据库敏感信息
+
+    目标示例:
+    - 获取数据库版本: 1 UNION SELECT version(),2,3,4,5--
+    - 获取当前用户: 1 UNION SELECT user(),2,3,4,5--
+    - 获取数据库: 1 UNION SELECT database(),2,3,4,5--
+    - 获取所有用户: 1 UNION SELECT group_concat(username),2,3,4,5 FROM user--
+    - 获取密码: 1 UNION SELECT group_concat(password),2,3,4,5 FROM user--
+    """
+    user_id = request.args.get('id', '1')
+
+    # 漏洞代码: 直接拼接 SQL，允许 UNION 注入
+    query = f"SELECT * FROM user WHERE id = {user_id}"
+
+    # 调试日志
+    print(f"[DEBUG] /api/cmd/user - user_id: {user_id}")
+    print(f"[DEBUG] /api/cmd/user - query: {query}")
+
+    try:
+        result = db.session.execute(text(query))
+        users = []
+
+        # 获取所有结果
+        all_rows = result.fetchall()
+        print(f"[DEBUG] /api/cmd/user - Total rows returned: {len(all_rows)}")
+
+        for row_idx, row in enumerate(all_rows):
+            print(f"[DEBUG] /api/cmd/user - Row {row_idx}: {row}, length: {len(row)}")
+            # 动态构建响应，支持 UNION 注入返回的任意字段
+            user_data = {}
+            # 尝试获取所有可能的字段
+            for i in range(len(row)):
+                # 为每个值分配一个通用的键名，这样 UNION 注入的结果不会被过滤
+                user_data[f'field_{i}'] = str(row[i]) if row[i] is not None else None
+
+            # 同时保留原始字段映射（如果存在）
+            if len(row) > 0:
+                user_data['id'] = row[0]
+            if len(row) > 1:
+                user_data['username'] = row[1]
+            if len(row) > 2:
+                user_data['password'] = row[2]  # 包含 password 字段
+            if len(row) > 3:
+                user_data['email'] = row[3]
+            if len(row) > 4:
+                user_data['role'] = row[4]
+            if len(row) > 5:
+                user_data['is_admin'] = row[5]
+
+            print(f"[DEBUG] /api/cmd/user - user_data: {user_data}")
+            users.append(user_data)
+
+        return jsonify({
+            'success': True,
+            'data': users,
+            'query': query,
+            'message': 'Command Injection Endpoint - WAF Protected',
+            'waf_stats': enhanced_waf.get_stats(),
+            'hint': 'Try to extract sensitive data via UNION injection'
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"[DEBUG] /api/cmd/user - SQL Error: {e}")
+        print(f"[DEBUG] /api/cmd/user - Traceback:\n{traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'query': query,
+            'waf_stats': enhanced_waf.get_stats()
+        }), 500
+
+
 # ==================== 初始化数据库 ====================
 
 def init_db():
