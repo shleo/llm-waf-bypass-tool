@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vulnerable Lab - SQL Injection Practice</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0;
+            border-bottom: 2px solid #00ff88;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.2em;
+        }
+
+        .info-box {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 20px;
+            border-left: 4px solid #00ff88;
+        }
+
+        .info-box h2 {
+            color: #00ff88;
+            margin-bottom: 15px;
+        }
+
+        .endpoint-list {
+            list-style: none;
+            margin-top: 20px;
+        }
+
+        .endpoint-list li {
+            background: rgba(0, 255, 136, 0.1);
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .warning {
+            background: rgba(255, 87, 87, 0.1);
+            border-left-color: #ff5757;
+        }
+
+        .warning h2 {
+            color: #ff5757;
+        }
+
+        .warning .endpoint-list li {
+            background: rgba(255, 87, 87, 0.1);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #888;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 Vulnerable Lab</h1>
+            <p class="subtitle">SQL Injection Practice Environment</p>
+        </header>
+
+        <div class="info-box">
+            <h2>📖 说明</h2>
+            <p>这是一个用于学习和练习 SQL 注入的漏洞靶场环境。</p>
+            <p style="margin-top: 10px;">请通过 Web UI 界面进行测试：<strong><a href="http://localhost:5001" style="color: #00ff88;">http://localhost:5001</a></strong></p>
+        </div>
+
+        <div class="info-box">
+            <h2>🔓 无保护漏洞端点</h2>
+            <ul class="endpoint-list">
+                <li>GET /api/user?id=1 - 基于 GET 的 SQL 注入</li>
+                <li>POST /login - 登录表单 SQL 注入</li>
+                <li>GET /api/search?q=test - 搜索框 SQL 注入</li>
+                <li>GET /api/posts?id=1 - 时间盲注</li>
+            </ul>
+        </div>
+
+        <div class="info-box warning">
+            <h2>🛡️ WAF 保护端点</h2>
+            <ul class="endpoint-list">
+                <li>GET /api/protected/user?id=1 - WAF 保护的 GET 注入</li>
+                <li>POST /api/protected/login - WAF 保护的登录注入</li>
+                <li>GET /api/challenge/search?q=test - WAF 挑战模式</li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <h2>⚙️ WAF 控制端点</h2>
+            <ul class="endpoint-list">
+                <li>GET /waf/stats - 查看 WAF 统计</li>
+                <li>POST /waf/toggle - 开关 WAF</li>
+                <li>POST /waf/mode/normal - 设置普通模式</li>
+                <li>POST /waf/mode/strict - 设置严格模式</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>⚠️ <strong>警告：</strong>本靶场仅供授权的安全测试和教育使用</p>
+        </div>
+    </div>
+</body>
+</html>

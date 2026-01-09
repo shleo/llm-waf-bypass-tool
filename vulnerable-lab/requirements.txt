@@ -1,0 +1,4 @@
+# Vulnerable Lab - SQL Injection Practice Environment
+
+flask==3.0.0
+flask-sqlalchemy==3.1.1
