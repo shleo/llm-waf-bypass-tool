@@ -43,7 +43,8 @@ env/
 Thumbs.db
 
 # Project specific
-llm_config.json
+# llm_config.json is now tracked (sanitized version)
+# Copy llm_config.json.example to llm_config.json and add your API key
 *.log
 *.db
 *.sqlite
